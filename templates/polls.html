@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polls - Online Voting System</title>
+</head>
+<body>
+    <h1>Active Polls</h1>
+
+    {% if polls %}
+        <ul>
+            {% for poll in polls %}
+                <li>
+                    {{ poll.question }}
+                    <!-- Include poll ID as a data attribute in the button -->
+                    <button type="button" class="vote-btn" data-poll-id="{{ poll.id }}">Vote</button>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No active polls available at the moment.</p>
+    {% endif %}
+
+    <br>
+    <a href="{{ url_for('home') }}">Back to Home</a>
+
+    <script>
+        // Function to get the JWT token from cookies
+        function getCookie(name) {
+            let cookieArr = document.cookie.split(";");
+            for (let i = 0; i < cookieArr.length; i++) {
+                let cookie = cookieArr[i].trim();
+                if (cookie.indexOf(name + "=") == 0) {
+                    return cookie.substring(name.length + 1, cookie.length);
+                }
+            }
+            return "";
+        }
+
+        // Attach event listener to all vote buttons
+        document.querySelectorAll('.vote-btn').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const pollId = this.getAttribute('data-poll-id');
+                submitVote(pollId);
+            });
+        });
+
+        // Function to submit the vote and include JWT in the request
+        function submitVote(pollId) {
+            const token = getCookie('access_token');  // Get the JWT from cookies
+            if (!token) {
+                alert("You must be logged in to vote!");
+                return;
+            }
+
+            console.log("Token Retrieved: ", token);  // Debugging
+
+            fetch(`/vote/${pollId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`  // Include JWT in Authorization header
+                },
+                body: JSON.stringify({ poll_id: pollId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);  // Show success/error message
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("An error occurred while submitting your vote.");
+            });
+        }
+    </script>
+</body>
+</html>
