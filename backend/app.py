@@ -1,17 +1,22 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
+from flask_cors import CORS
+import pyodbc
 
 # Initialize Flask app and configurations
 app = Flask(__name__)
 
+# Enable CORS for React app (adjust to your frontend URL if needed)
+CORS(app)
+
 # Database Configuration and App Settings
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mssql+pyodbc://@LIN81001940\\SQLEXPRESS/VotingDb?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes'
-app.config['JWT_SECRET_KEY'] = '984e782ee9f2ee599b827a6b06968056b3f63454bec179a5256564ac3a613891'  # Secret for JWT tokens
+app.config['JWT_SECRET_KEY'] = 'your_secret_key_here'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'a3f85d07a258d4b6f98d559634d1d2c8c0a78d5a7f8b3fa3d8eb7cdb5929baf4'  # Required for session management and flash messages
+app.secret_key = 'your_secret_key_here'
 
 # Initialize Extensions
 db = SQLAlchemy(app)
@@ -46,118 +51,64 @@ class Vote(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     poll_id = db.Column(db.Integer, db.ForeignKey('polls.id'), nullable=False)
 
-# Routes
+# Routes (Flask API)
 
-@app.route('/')
-def home():
-    return render_template('home.html')
-
-@app.route('/register', methods=['GET', 'POST'])
+# User Registration
+@app.route('/api/register', methods=['POST'])
 def register():
-    if request.method == 'POST':
-        data = request.form
-        existing_user = User.query.filter_by(username=data['username']).first()
+    data = request.json
+    existing_user = User.query.filter_by(username=data['username']).first()
+    if existing_user:
+        return jsonify({"message": "Username already exists."}), 400
 
-        if existing_user:
-            flash("Username already exists. Please choose another.", 'danger')
-            return render_template('register.html')
+    user = User(username=data['username'])
+    user.set_password(data['password'])
+    db.session.add(user)
+    db.session.commit()
 
-        user = User(username=data['username'])
-        user.set_password(data['password'])
-        db.session.add(user)
-        db.session.commit()
+    return jsonify({"message": "User registered successfully!"}), 201
 
-        flash("User registered successfully!", 'success')
-        return redirect(url_for('login'))
-
-    return render_template('register.html')
-
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if request.method == 'POST':
-#         username = request.form.get('username')
-#         password = request.form.get('password')
-
-#         user = User.query.filter_by(username=username).first()
-
-#         if user and user.check_password(password):
-#             access_token = create_access_token(identity=user.id)
-#             response = jsonify(access_token=access_token)
-#             response.set_cookie(
-#                 'access_token',
-#                 access_token,
-#                 max_age=timedelta(days=1),
-#                 secure=True,
-#                 httponly=True,
-#                 samesite='Lax')
-#             return redirect(url_for('polls_page'))
-
-#         flash("Invalid credentials. Please try again.", 'danger')
-#         return redirect(url_for('login'))
-
-#     return render_template('login.html')
-
-@app.route('/login', methods=['GET', 'POST'])
+# User Login
+@app.route('/api/login', methods=['POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    data = request.json
+    username = data['username']
+    password = data['password']
 
-        user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(username=username).first()
+    if user and user.check_password(password):
+        access_token = create_access_token(identity=user.id)
+        return jsonify(access_token=access_token), 200
 
-        if user and user.check_password(password):
-            access_token = create_access_token(identity=user.id, fresh=True)
+    return jsonify({"message": "Invalid credentials"}), 401
 
-            # Set JWT token in cookie
-            response = jsonify(access_token=access_token)
-            response.set_cookie(
-                'access_token',
-                access_token,
-                max_age=timedelta(days=1),  # Expiry time for the cookie
-                secure=True,  # Ensure cookie is only sent over HTTPS
-                httponly=True,  # Make it inaccessible to JavaScript
-                samesite='Lax'  # This is useful to prevent CSRF attacks
-            )
-            return redirect(url_for('polls_page'))  # Redirect to the polls page after login
-
-        flash("Invalid credentials. Please try again.", 'danger')
-        return redirect(url_for('login'))
-
-    return render_template('login.html')
-
-@app.route('/polls')
+# Fetch Active Polls
+@app.route('/api/polls', methods=['GET'])
 @jwt_required()
 def polls_page():
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-
-    if not user:
-        return jsonify(message="User not found"), 404
-
     polls = Poll.query.filter_by(is_active=True).all()
-    return render_template('polls.html', polls=polls)
+    return jsonify([{'id': poll.id, 'question': poll.question} for poll in polls])
 
-@app.route('/vote/<int:poll_id>', methods=['POST'])
+# Vote on a Poll
+@app.route('/api/vote/<int:poll_id>', methods=['POST'])
 @jwt_required()
 def vote(poll_id):
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
 
-    if not user:
-        return jsonify(message="User not found"), 404
-
     if Vote.query.filter_by(user_id=user.id, poll_id=poll_id).first():
-        return jsonify(message="You have already voted on this poll."), 403
+        return jsonify({"message": "You have already voted on this poll."}), 400
 
     poll = Poll.query.get(poll_id)
     if not poll:
-        return jsonify(message="Poll not found"), 404
+        return jsonify({"message": "Poll not found."}), 404
 
     vote = Vote(user_id=user.id, poll_id=poll.id)
     db.session.add(vote)
     db.session.commit()
 
-    return jsonify(message="Vote successfully casted."), 200
+    return jsonify({"message": "Vote successfully casted."}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
