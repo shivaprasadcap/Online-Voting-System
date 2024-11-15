@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from datetime import timedelta
@@ -43,8 +43,8 @@ class Vote(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     poll_id = db.Column(db.Integer, db.ForeignKey('polls.id'), nullable=False)
 
-# Routes
 
+# Routes
 @app.route('/')
 def home():
     return render_template('home.html')
@@ -87,6 +87,39 @@ def login():
 
     return render_template('login.html')
 
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        user = User.query.filter_by(username=username).first()
+
+        # if user and user.check_password(password) and user.is_admin:
+        if user and user.check_password(password):
+            # session['user_id'] = user.id  # Store user ID in session to identify logged-in admin
+            flash("Login successful!", 'success')
+            return redirect(url_for('admin_dashboard'))  # Redirect to the admin dashboard
+
+        flash("Invalid credentials or you are not an admin.", 'danger')
+        return redirect(url_for('admin_login'))
+
+    return render_template('admin_login.html')
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    # Check if the user is an admin
+    user_id = session.get('user_id')
+    user = User.query.get(user_id)
+    
+    # if not user or not user.is_admin:
+    # if user and user.check_password(password):
+    if user == 'shivaprn':
+        flash("You are not authorized to view this page.", 'danger')
+        return redirect(url_for('home'))  # Redirect to home if not admin
+    
+    return render_template('admin_dashboard.html')  # Your admin dashboard page
+
 @app.route('/polls')
 def polls_page():
     # Since we are no longer using JWT, we simply assume the user is logged in and proceed
@@ -95,6 +128,29 @@ def polls_page():
     
     polls = Poll.query.filter_by(is_active=True).all()
     return render_template('polls.html', polls=polls)
+
+@app.route('/create_poll', methods=['GET', 'POST'])
+def create_poll():
+    # Verify that the user is an admin
+    user = User.query.first()  # Replace this with the actual session or user verification logic
+    if not user or not user.is_admin:
+        flash("You are not authorized to create polls.", 'danger')
+        return redirect(url_for('polls_page'))
+
+    if request.method == 'POST':
+        question = request.form.get('question')
+
+        if question:
+            poll = Poll(question=question)
+            db.session.add(poll)
+            db.session.commit()
+
+            flash("Poll created successfully!", 'success')
+            return redirect(url_for('admin_dashboard'))
+
+        flash("Please enter a valid question for the poll.", 'danger')
+
+    return render_template('create_poll.html')
 
 @app.route('/vote/<int:poll_id>', methods=['POST'])
 def vote(poll_id):
