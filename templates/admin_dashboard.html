@@ -13,23 +13,48 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            </div>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
-                    </li>
-                </ul>
-            </div>
         </div>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('create_poll') }}">Create Poll</a>  <!-- Link to create poll page -->
+                </li>
+            </ul>
+        </div>
+    </div>
     </nav>
-    <h1>Welcome to Admin Dashboard</h1>
-    <form action="/create_poll" method="POST">
-        <label for="question">Poll Question:</label>
-        <input type="text" id="question" name="question" required><br><br>
-        
-        <button type="submit">Create Poll</button>
-    </form>
-    
+
+    <div class="container mt-4">
+        <h1>Welcome to Admin Dashboard</h1>
+
+        <!-- Display Existing Polls -->
+        <h2>Existing Polls</h2>
+        {% if polls %}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Poll Question</th>
+                        <th>Poll Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for poll in polls %}
+                    <tr>
+                        <td>{{ poll.question }}</td>
+                        <td>{{ poll.poll_type }}</td>
+                        <td>{{ 'Active' if poll.is_active else 'Inactive' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No polls available.</p>
+        {% endif %}
+    </div>
+
 </body>
 </html>

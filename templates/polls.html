@@ -13,7 +13,6 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            </div>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
@@ -23,23 +22,46 @@
             </div>
         </div>
     </nav>
-    <h1>Active Polls</h1>
 
-    {% if polls %}
-        <ul>
-            {% for poll in polls %}
-                <li>
-                    {{ poll.question }}
-                    <!-- Include poll ID as a data attribute in the button -->
-                    <button type="button" class="vote-btn" data-poll-id="{{ poll.id }}">Vote</button>
-                </li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p>No active polls available at the moment.</p>
-    {% endif %}
+    <div class="container mt-4">
+        <h1>Active Polls</h1>
 
-    <br>
+        {% if polls %}
+            <ul class="list-group">
+                {% for poll in polls %}
+                    <li class="list-group-item">
+                        <h5>{{ poll.question }}</h5>
+
+                        <!-- Check if the poll is a multiple-choice or suggestion poll -->
+                        {% if poll.poll_type == 'multiple_choice' %}
+                            <form id="vote-form-{{ poll.id }}" data-poll-id="{{ poll.id }}">
+                                <div class="mb-3">
+                                    {% for option in poll.options %}
+                                        <div>
+                                            <input type="radio" id="option_{{ option.id }}" name="vote_choice" value="{{ option.id }}">
+                                            <label for="option_{{ option.id }}">{{ option.option_text }}</label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="submit" class="btn btn-primary">Vote</button>
+                            </form>
+                        {% elif poll.poll_type == 'suggestion' %}
+                            <form id="vote-form-{{ poll.id }}" data-poll-id="{{ poll.id }}">
+                                <div class="mb-3">
+                                    <label for="response_{{ poll.id }}" class="form-label">Your Suggestion:</label>
+                                    <textarea id="response_{{ poll.id }}" class="form-control" name="response" rows="3" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Submit Suggestion</button>
+                            </form>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No active polls available at the moment.</p>
+        {% endif %}
+    </div>
+
     <script>
         // Function to get the JWT token from cookies
         function getCookie(name) {
@@ -53,41 +75,61 @@
             return "";
         }
 
-        // Attach event listener to all vote buttons
-        document.querySelectorAll('.vote-btn').forEach(function(button) {
-            button.addEventListener('click', function() {
-                const pollId = this.getAttribute('data-poll-id');
-                submitVote(pollId);
+        // Attach event listeners to all vote forms
+        document.querySelectorAll('form[id^="vote-form-"]').forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                event.preventDefault(); // Prevent form submission
+
+                const pollId = form.getAttribute('data-poll-id');
+                const pollType = form.querySelector('input[name="vote_choice"]') ? 'multiple_choice' : 'suggestion';
+                const token = getCookie('access_token');  // Get the JWT from cookies
+
+                if (!token) {
+                    alert("You must be logged in to vote!");
+                    return;
+                }
+
+                let voteData = { poll_id: pollId };
+
+                // Handle multiple-choice poll
+                if (pollType === 'multiple_choice') {
+                    const selectedOption = form.querySelector('input[name="vote_choice"]:checked');
+                    if (!selectedOption) {
+                        alert("Please select an option to vote!");
+                        return;
+                    }
+                    voteData.choice = selectedOption.value;
+                }
+                // Handle suggestion poll
+                else if (pollType === 'suggestion') {
+                    const response = form.querySelector('textarea[name="response"]').value;
+                    if (!response) {
+                        alert("Please provide a suggestion.");
+                        return;
+                    }
+                    voteData.response = response;
+                }
+
+                // Submit the vote
+                fetch(`/vote/${pollId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`  // Include JWT in Authorization header
+                    },
+                    body: JSON.stringify(voteData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);  // Show success/error message
+                    // Optionally, refresh the page or update the UI to reflect the vote.
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("An error occurred while submitting your vote.");
+                });
             });
         });
-
-        // Function to submit the vote and include JWT in the request
-        function submitVote(pollId) {
-            const token = getCookie('access_token');  // Get the JWT from cookies
-            if (!token) {
-                alert("You must be logged in to vote!");
-                return;
-            }
-
-            console.log("Token Retrieved: ", token);  // Debugging
-
-            fetch(`/vote/${pollId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`  // Include JWT in Authorization header
-                },
-                body: JSON.stringify({ poll_id: pollId })
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);  // Show success/error message
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                alert("An error occurred while submitting your vote.");
-            });
-        }
     </script>
 </body>
 </html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Poll</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Online Voting System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Back to Dashboard</a>  <!-- Link to go back to admin dashboard -->
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>Create New Poll</h1>
+
+        <form method="POST">
+            <div class="mb-3">
+                <label for="question" class="form-label">Poll Question:</label>
+                <input type="text" name="question" id="question" class="form-control" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="poll_type" class="form-label">Poll Type:</label>
+                <select name="poll_type" id="poll_type" class="form-control" required>
+                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="suggestion">Suggestion</option>
+                </select>
+            </div>
+            
+            <div id="options">
+                <div class="option-group mb-3">
+                    <label for="option_1" class="form-label">Option 1:</label>
+                    <input type="text" name="option_1" id="option_1" class="form-control" required>
+                </div>
+                <div class="option-group mb-3">
+                    <label for="option_2" class="form-label">Option 2:</label>
+                    <input type="text" name="option_2" id="option_2" class="form-control" required>
+                </div>
+            </div>
+            
+            <button type="button" id="add-option-btn" class="btn btn-secondary">Add More Options</button><br><br>
+            
+            <button type="submit" class="btn btn-primary">Create Poll</button>
+        </form>
+
+        <script>
+            // JavaScript to dynamically add more options for multiple-choice polls
+            const addOptionBtn = document.getElementById('add-option-btn');
+            const optionsContainer = document.getElementById('options');
+            let optionCount = 2; // Start with two options
+
+            addOptionBtn.addEventListener('click', () => {
+                optionCount++;
+                const newOption = document.createElement('div');
+                newOption.classList.add('option-group', 'mb-3');
+                newOption.innerHTML = `
+                    <label for="option_${optionCount}" class="form-label">Option ${optionCount}:</label>
+                    <input type="text" name="option_${optionCount}" id="option_${optionCount}" class="form-control" required>
+                `;
+                optionsContainer.appendChild(newOption);
+            });
+
+            // JavaScript to show/hide options for suggestion polls
+            const pollTypeSelect = document.getElementById('poll_type');
+            const optionsDiv = document.getElementById('options');
+
+            pollTypeSelect.addEventListener('change', function() {
+                if (pollTypeSelect.value === 'multiple_choice') {
+                    optionsDiv.style.display = 'block';
+                    addOptionBtn.style.display = 'block';
+                } else {
+                    optionsDiv.style.display = 'none';
+                    addOptionBtn.style.display = 'none';
+                }
+            });
+
+            // Initially hide options if it's a suggestion poll
+            if (pollTypeSelect.value === 'suggestion') {
+                optionsDiv.style.display = 'none';
+                addOptionBtn.style.display = 'none';
+            }
+        </script>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="alert alert-info">
+                    {% for category, message in messages %}
+                        <li class="alert alert-{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+    </div>
+</body>
+</html>
